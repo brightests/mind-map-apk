@@ -18,8 +18,8 @@ const store = new Vuex.Store({
       isShowScrollbar: false,
       // 是否是暗黑模式
       isDark: false,
-      // 是否开启AI功能
-      enableAi: true
+      // 是否开启AI功能（离线自部署默认关闭；AI 需本地代理 + 联网）
+      enableAi: false
     },
     activeSidebar: '', // 当前显示的侧边栏
     isOutlineEdit: false, // 是否是大纲编辑模式
