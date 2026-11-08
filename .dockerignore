@@ -1,0 +1,12 @@
+# Dockerfile 只 COPY: index.html / dist / nginx.conf
+# 构建上下文原本约 73 MB（其中 .git 占 52 MB），排除后约 18 MB
+.git
+assets
+**/node_modules
+dist_electron
+utools
+*.log
+README*.md
+LICENSE
+copy.js
+.gitignore

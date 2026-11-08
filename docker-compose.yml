@@ -1,0 +1,52 @@
+# 思绪思维导图（simple-mind-map Web 版）本地自托管
+#
+# 与 drawnix 不同：本仓库已提交完整静态产物（根 index.html + dist/），
+# Dockerfile 只做三次 COPY，不执行 npm install / 编译。
+# 构建阶段除拉取 nginx 基础镜像外无网络依赖，更适合离线部署。
+#
+# 启动：
+#   docker compose up -d --build
+# 访问：
+#   http://localhost:8081
+# 默认用 8081 是为了与 drawnix 的 8080 错开，方便两个同时启动对比。
+#
+# 运行期可完全断网。数据存在浏览器 localStorage（单文档、有容量上限），
+# 容器无状态、无需数据卷；重要导图请用「导出 .smm / .json」自行备份。
+#
+# 可选变量（写入 .env，或作为命令前缀）：
+#   MIND_MAP_PORT=8081        宿主机端口，容器内部固定 80（nginx.conf listen 80）
+#   MIND_MAP_BIND=127.0.0.1   默认仅本机可访问；局域网共享时改成 0.0.0.0
+#
+# 已完成的离线处理（源码与已提交的构建产物都改过，无需重新 npm build）：
+#   - 移除 51.la 统计脚本：根 index.html 与 web/public/index.html 两处
+#   - AI 默认关闭：web/src/store.js 与 dist/js/app.js 的 Vuex 默认值
+#   - 移除「网页版仅供试用」弹窗：Edit.vue 与 dist/js/chunk-ef5c9f42.js 的 webTip
+#   改完需重新构建镜像：docker compose up -d --build（浏览器记得强刷清缓存）
+#
+# 注意：AI 开关会持久化在浏览器 localStorage。若之前在同一地址访问过并保存过
+# 配置，旧值仍是 true，请在应用「设置 → 是否开启AI功能」里手动关一次。
+#
+# 仍存在的外联（断网时静默失败，不影响编辑）：
+#   - TOAST UI Editor 内置的 Google Analytics 上报（dist/js/chunk-ef5c9f42.js）
+#   - KaTeX 字体路径编译在 dist/js/chunk-ef5c9f42.js 内，默认指向 unpkg.com；
+#     仅导出 HTML 时会请求，需要完全离线可把字体放进 dist/ 并改为本地路径
+#
+# 未配 healthcheck：Dockerfile 用的是浮动的 FROM nginx，镜像内不保证带
+# curl / wget；如需存活探测请在宿主机轮询 http://127.0.0.1:8081/。
+# 追求可复现可把 Dockerfile 的 FROM nginx 固定成 nginx:1.27-alpine。
+
+services:
+  mind-map:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mind-map:local
+    container_name: mind-map
+    restart: unless-stopped
+    ports:
+      - "${MIND_MAP_BIND:-127.0.0.1}:${MIND_MAP_PORT:-8081}:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
