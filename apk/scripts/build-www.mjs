@@ -6,8 +6,9 @@
  * dist/ 内反而没有入口文件，所以 Capacitor 的 webDir 不能直接指向 dist/。
  *
  * 对仓库根 index.html 与 dist/ 一律只读，保留已提交的离线补丁；唯一的写入
- * 发生在生成物 apk/www/ 里：复制 APK 专用的 mobile.css，并在 www/index.html
- * 的 </head> 前插一个 <link>，让窄屏覆盖层只作用于 Android WebView。
+ * 发生在生成物 apk/www/ 里：复制 APK 专用的 mobile.css / mobile.js，并在
+ * www/index.html 注入 <link> 与 <script>，让窄屏覆盖层和「退出全屏」入口
+ * 只作用于 Android WebView。注入都是幂等的，重复执行不会叠加标签。
  */
 import { cp, copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -20,6 +21,7 @@ const wwwDir = path.join(apkDir, 'www')
 const srcIndex = path.join(repoRoot, 'index.html')
 const srcDist = path.join(repoRoot, 'dist')
 const srcMobileCss = path.join(apkDir, 'mobile.css')
+const srcMobileJs = path.join(apkDir, 'mobile.js')
 
 async function exists(p) {
   try {
@@ -34,6 +36,7 @@ async function main() {
   if (!(await exists(srcIndex))) throw new Error(`缺少入口文件：${srcIndex}`)
   if (!(await exists(srcDist))) throw new Error(`缺少静态资源目录：${srcDist}`)
   if (!(await exists(srcMobileCss))) throw new Error(`缺少窄屏覆盖层：${srcMobileCss}`)
+  if (!(await exists(srcMobileJs))) throw new Error(`缺少退出全屏脚本：${srcMobileJs}`)
 
   const html = await readFile(srcIndex, 'utf8')
   const refs = [
@@ -57,6 +60,7 @@ async function main() {
   await copyFile(srcIndex, path.join(wwwDir, 'index.html'))
   await cp(srcDist, path.join(wwwDir, 'dist'), { recursive: true })
   await copyFile(srcMobileCss, path.join(wwwDir, 'mobile.css'))
+  await copyFile(srcMobileJs, path.join(wwwDir, 'mobile.js'))
 
   // 幂等注入：只改 www 产物，仓库根 index.html 保持原样（桌面 / Docker 不受影响）。
   const wwwIndex = path.join(wwwDir, 'index.html')
@@ -65,18 +69,29 @@ async function main() {
     /<link\b[^>]*href=["'](?:\.\/)?mobile\.css["'][^>]*>\s*/gi,
     ''
   )
+  outHtml = outHtml.replace(
+    /<script\b[^>]*src=["'](?:\.\/)?mobile\.js["'][^>]*>\s*<\/script>\s*/gi,
+    ''
+  )
   if (!/<\/head>/i.test(outHtml)) {
     throw new Error('www/index.html 缺少 </head>，无法注入窄屏覆盖层')
+  }
+  if (!/<\/body>/i.test(outHtml)) {
+    throw new Error('www/index.html 缺少 </body>，无法注入退出全屏脚本')
   }
   outHtml = outHtml.replace(
     /<\/head>/i,
     '<link rel="stylesheet" href="./mobile.css"></head>'
   )
+  outHtml = outHtml.replace(
+    /<\/body>/i,
+    '<script src="./mobile.js"></script></body>'
+  )
   await writeFile(wwwIndex, outHtml, 'utf8')
 
   console.log(`[build-www] OK -> ${path.relative(repoRoot, wwwDir)}`)
   console.log(`[build-www] 入口资源校验通过：${refs.length} 个本地引用`)
-  console.log('[build-www] 已注入 APK 专用窄屏覆盖层 mobile.css')
+  console.log('[build-www] 已注入 APK 专用 mobile.css / mobile.js')
 }
 
 main().catch(err => {
