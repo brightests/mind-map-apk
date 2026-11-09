@@ -1,0 +1,93 @@
+/*
+ * APK 专用窄屏覆盖层（P4 第一期）
+ *
+ * 为什么单独一层：上游 Web 应用面向桌面，全项目只有 Count.vue(900px) 和
+ * NavigatorToolbar.vue(700px) 两处媒体查询。改 web/src + dist/ 会让 Docker
+ * 镜像与桌面网页一起变，重建 Vue2 又有风险；这里由 build-www.mjs 只在
+ * apk/www/index.html 注入，桌面 / Docker / 业务源码零影响，整体可回退。
+ *
+ * 组件样式是 Vue scoped（.xxx[data-v-hash]），且富文本工具栏的 left 是 JS
+ * 内联样式，所以关键属性必须用 !important 才能盖过去。
+ * 只修「溢出屏幕」，不改交互逻辑；长按菜单 / 返回键 / 侧栏布局留到 P4 后续。
+ */
+
+@media screen and (max-width: 700px) {
+  /* 1. 阻止 document 级横向滚动（绝对定位工具条溢出会撑宽文档） */
+  html,
+  body,
+  #app {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* 2. 顶部主工具栏：桌面是 left:50% + translateX(-50%) + width:max-content，
+     窄屏下内容宽于视口时左右同时被裁。改为贴边、可横向滑动。 */
+  .toolbarContainer .toolbar {
+    left: 8px !important;
+    right: 8px !important;
+    top: 12px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: calc(100vw - 16px) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .toolbarContainer .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .toolbarContainer .toolbar > * {
+    flex: 0 0 auto;
+  }
+
+  /* 3. 富文本工具栏：10+ 个 55px 按钮 ≈ 550px，JS 内联 left 跟随选区 +
+     transform:translateX(-50%)，480px 视口必然左右裁切。固定贴边并压缩按钮。 */
+  .richTextToolbar {
+    left: 8px !important;
+    right: 8px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: calc(100vw - 16px) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .richTextToolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .richTextToolbar .btn {
+    flex: 0 0 48px;
+    width: 48px !important;
+    min-width: 48px !important;
+  }
+
+  /* 4. 右侧侧栏拉手：桌面 right:-60px，靠 hover 滑出；触屏没有 hover，
+     蓝色拉手永远只露半个在屏幕外。收起状态下多露出 30px 供点击。 */
+  .sidebarTriggerContainer:not(.show):not(.hasActive) {
+    right: -6px !important;
+  }
+  .sidebarTriggerContainer .toggleShowBtn {
+    left: -28px !important;
+    width: 34px !important;
+    height: 56px !important;
+  }
+
+  /* 5. 底部缩放栏：上游 ≤700px 已改成 left:20px + overflow-x:auto，
+     但会画出一条可见滚动条；压实间距并隐藏滚动条，仍可横向滑动。 */
+  .navigatorContainer {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 12px !important;
+    padding: 0 8px !important;
+    scrollbar-width: none;
+  }
+  .navigatorContainer::-webkit-scrollbar {
+    display: none;
+  }
+  .navigatorContainer .item {
+    flex: 0 0 auto;
+    margin-right: 12px !important;
+  }
+}
