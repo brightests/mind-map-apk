@@ -1,5 +1,9 @@
 /*
- * APK 专用：给 Android WebView 补一个「退出全屏」入口。
+ * APK 专用移动端补丁（两个独立 IIFE，按顺序执行）：
+ *   ① 给 Android WebView 补一个「退出全屏」入口；
+ *   ② 补回被上游 isMobile 隐藏的「新建」按钮。
+ *
+ * ① 给 Android WebView 补一个「退出全屏」入口。
  *
  * 上游 Fullscreen.vue 的两个按钮只调用 fullScreen(mindMap.el) / fullScreen(document.body)，
  * 退出完全依赖浏览器原生 Esc；手机没有物理 Esc，返回键在部分 WebView 里也不会先退出
@@ -240,4 +244,227 @@
   }, true)
 
   sync()
+})()
+
+/*
+ * ---------------------------------------------------------------------------
+ * APK 专用：补回被上游 isMobile 隐藏的「新建」按钮
+ * ---------------------------------------------------------------------------
+ * Toolbar.vue 的「打开目录 / 新建 / 打开文件 / 另存为」四个按钮都带 v-if="!isMobile"，
+ * 而 simple-mind-map/src/utils/index.js 的 isMobile() 只匹配 navigator.userAgent 里的
+ * Android|iPhone|... ，Android WebView 必然命中，于是 APK 里只剩「导入 / 导出」。
+ *
+ * 不能简单把 isMobile 改成 false：这四个按钮内部走 window.showSaveFilePicker /
+ * showOpenFilePicker / showDirectoryPicker（File System Access API），Android WebView
+ * 都不支持，放开只会得到点了就报「不支持」的按钮；同时其它组件的弹窗宽度会从 90%
+ * 变回 800px，在窄屏上溢出。
+ *
+ * 这里注入一个 APK 专用的「新建」：通过 Vue 根实例上的 $bus 派发上游已有的 setData
+ * 事件（Edit.vue 常驻监听，导入 .md / .smm 走的是同一条路），把画布换成空白导图；
+ * 拿不到 $bus 时降级为写 localStorage + reload。新建会覆盖当前内容，因此先弹确认层。
+ * 不改 web/src、不改 dist/、不改 Docker，删掉本段即可整体回退。
+ */
+;(function () {
+  'use strict'
+
+  if (window.__apkNewFileInstalled) return
+  window.__apkNewFileInstalled = true
+
+  var BTN_ID = 'apkNewFileBtn'
+  var MASK_ID = 'apkConfirmMask'
+  var DATA_KEY = 'SIMPLE_MIND_MAP_DATA'
+  var ROOT_TEXT = '中心主题'
+
+  function blankRoot() {
+    return { data: { text: ROOT_TEXT }, children: [] }
+  }
+
+  // 全局 $bus 只在 takeOverApp 模式暴露，正常启动时要从 Vue 根实例的 __vue__ 上取。
+  function findBus() {
+    if (window.$bus && window.$bus.$emit) return window.$bus
+    var el = document.querySelector('.toolbarContainer')
+    while (el) {
+      var vm = el.__vue__
+      if (vm && vm.$bus && vm.$bus.$emit) return vm.$bus
+      el = el.parentElement
+    }
+    var all = document.body ? document.body.querySelectorAll('*') : []
+    for (var i = 0; i < all.length; i++) {
+      var v = all[i].__vue__
+      if (v && v.$bus && v.$bus.$emit) return v.$bus
+    }
+    return null
+  }
+
+  // 兜底：直接回写 localStorage 再重载。theme / layout 必须保留，
+  // 否则 Edit.vue init() 里解构 theme.template 会抛错导致白屏。
+  function fallbackNew() {
+    var full = {}
+    try {
+      var raw = localStorage.getItem(DATA_KEY)
+      if (raw) full = JSON.parse(raw) || {}
+    } catch (e) {
+      full = {}
+    }
+    full.root = blankRoot()
+    full.view = null
+    if (!full.theme || !full.theme.template) {
+      full.theme = { template: 'classic4', config: {} }
+    }
+    if (!full.layout) full.layout = 'logicalStructure'
+    try {
+      localStorage.setItem(DATA_KEY, JSON.stringify(full))
+      location.reload()
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
+  function toast(msg) {
+    var t = document.createElement('div')
+    t.className = 'apkToast'
+    t.textContent = msg
+    document.body.appendChild(t)
+    setTimeout(function () {
+      if (t.parentNode) t.parentNode.removeChild(t)
+    }, 2000)
+  }
+
+  function doNew() {
+    var bus = findBus()
+    if (bus) {
+      bus.$emit('setData', blankRoot())
+      toast('已新建空白导图')
+      return
+    }
+    if (fallbackNew()) return
+    toast('新建失败，请重启应用后重试')
+  }
+
+  // 触摸 + 鼠标双通道，400ms 节流避免 touchend 后再触发 click 重复执行。
+  function bindTap(el, fn) {
+    var last = 0
+    function fire(e) {
+      if (Date.now() - last < 400) return
+      last = Date.now()
+      if (e && e.cancelable) e.preventDefault()
+      if (e && e.stopPropagation) e.stopPropagation()
+      fn(e)
+    }
+    el.addEventListener('touchend', fire, false)
+    el.addEventListener('click', fire, false)
+  }
+
+  // 不用 window.confirm：部分 WebView 宿主没实现 onJsConfirm，会静默失败。
+  function showConfirm() {
+    if (document.getElementById(MASK_ID)) return
+
+    var mask = document.createElement('div')
+    mask.id = MASK_ID
+    mask.className = 'apkConfirmMask'
+
+    var card = document.createElement('div')
+    card.className = 'apkConfirmCard'
+
+    var title = document.createElement('div')
+    title.className = 'apkConfirmTitle'
+    title.textContent = '新建思维导图'
+
+    var desc = document.createElement('div')
+    desc.textContent =
+      '将清空当前画布并新建一张空白导图。当前内容不会自动保留，建议先「导出」备份。'
+
+    var actions = document.createElement('div')
+    actions.className = 'apkConfirmActions'
+
+    var cancel = document.createElement('button')
+    cancel.type = 'button'
+    cancel.textContent = '取消'
+
+    var ok = document.createElement('button')
+    ok.type = 'button'
+    ok.className = 'apkConfirmOk'
+    ok.textContent = '新建'
+
+    actions.appendChild(cancel)
+    actions.appendChild(ok)
+    card.appendChild(title)
+    card.appendChild(desc)
+    card.appendChild(actions)
+    mask.appendChild(card)
+    document.body.appendChild(mask)
+
+    function close() {
+      if (mask.parentNode) mask.parentNode.removeChild(mask)
+    }
+    bindTap(cancel, close)
+    bindTap(ok, function () {
+      close()
+      doNew()
+    })
+    // 只有点在遮罩本身才关闭；卡片与按钮的监听已 stopPropagation。
+    bindTap(mask, function (ev) {
+      if (ev && ev.target === mask) close()
+    })
+  }
+
+  function createBtn() {
+    var btn = document.createElement('div')
+    btn.id = BTN_ID
+    btn.className = 'apkNewFileBtn'
+    var icon = document.createElement('span')
+    icon.className = 'icon iconfont iconxinjian'
+    var text = document.createElement('span')
+    text.className = 'text'
+    text.textContent = '新建'
+    btn.appendChild(icon)
+    btn.appendChild(text)
+    bindTap(btn, showConfirm)
+    return btn
+  }
+
+  // 目标：含「导入」按钮的那一块 toolbarBlock，让「新建」排在导入之前。
+  function findBlock() {
+    var blocks = document.querySelectorAll(
+      '.toolbarContainer .toolbar .toolbarBlock'
+    )
+    if (!blocks.length) return null
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i].querySelector('.icondaoru')) return blocks[i]
+    }
+    return blocks[blocks.length - 1]
+  }
+
+  var btn = null
+  var observed = false
+
+  function install() {
+    var block = findBlock()
+    if (!block) return false
+    if (!btn) btn = createBtn()
+    if (btn.parentNode !== block) {
+      block.insertBefore(btn, block.firstChild)
+    }
+    // Vue 重渲染工具栏时可能把外部注入的节点挤走；只观察工具栏自身，
+    // 导图 SVG 不在其子树内，不会因节点渲染产生额外回调。
+    if (!observed && window.MutationObserver && block.parentNode) {
+      observed = true
+      var toolbar = block.parentNode
+      new MutationObserver(function () {
+        var b = findBlock()
+        if (b && btn && btn.parentNode !== b) {
+          b.insertBefore(btn, b.firstChild)
+        }
+      }).observe(toolbar, { childList: true, subtree: true })
+    }
+    return true
+  }
+
+  var tries = 0
+  install()
+  var timer = setInterval(function () {
+    tries++
+    if (install() || tries >= 60) clearInterval(timer)
+  }, 200)
 })()

@@ -96,3 +96,118 @@
     margin-right: 12px !important;
   }
 }
+
+/*
+ * APK 专用：补回被上游 isMobile 隐藏的「新建」按钮。
+ * 样式写在媒体查询外，宽屏设备同样可用；本文件只注入 apk/www/，桌面/Docker 无感。
+ * 注入的 DOM 没有 Vue scoped 的 data-v 属性，因此不能复用 .toolbarBtn 规则，
+ * 这里按 Toolbar.vue 的原值复刻一份（图标字体 .iconfont 来自全局 app.css）。
+ */
+.apkNewFileBtn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+  margin-right: 20px;
+  font-size: 12px;
+  color: rgba(26, 26, 26, 0.8);
+  -webkit-tap-highlight-color: transparent;
+}
+.apkNewFileBtn .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 5px;
+  font-size: 16px;
+  background: #fff;
+  border: 1px solid #e9e9e9;
+  border-radius: 4px;
+}
+.apkNewFileBtn .text {
+  margin-top: 3px;
+  text-align: center;
+  white-space: nowrap;
+}
+.toolbarContainer.isDark .apkNewFileBtn {
+  color: hsla(0, 0%, 100%, 0.9);
+}
+.toolbarContainer.isDark .apkNewFileBtn .icon {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* 新建前的确认浮层：不用 window.confirm，部分 WebView 宿主未实现 onJsConfirm */
+.apkConfirmMask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.apkConfirmCard {
+  width: 100%;
+  max-width: 320px;
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 10px;
+  padding: 20px 18px 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.apkConfirmCard .apkConfirmTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.apkConfirmActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+.apkConfirmActions button + button {
+  margin-left: 10px;
+}
+.apkConfirmActions button {
+  min-width: 72px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #f2f3f5;
+  color: #333;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.apkConfirmActions button.apkConfirmOk {
+  background: #1989fa;
+  color: #fff;
+}
+
+/* 轻量结果提示 */
+.apkToast {
+  position: fixed;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  z-index: 2147483000;
+  max-width: 80vw;
+  padding: 9px 16px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+}
