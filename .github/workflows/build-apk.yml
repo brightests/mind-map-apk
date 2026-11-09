@@ -65,7 +65,7 @@ jobs:
 
       - name: Preflight
         run: |
-          for f in apk/package-lock.json apk/capacitor.config.json apk/scripts/build-www.mjs index.html dist/js/app.js; do
+          for f in apk/package-lock.json apk/capacitor.config.json apk/scripts/build-www.mjs apk/mobile.css apk/mobile.js apk/android/app/src/main/java/com/example/mindmap/offline/ApkFilePlugin.java index.html dist/js/app.js; do
             if [ ! -f "$f" ]; then echo "::error::缺少文件 $f"; exit 1; fi
           done
           echo "preflight OK"

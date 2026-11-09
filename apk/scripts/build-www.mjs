@@ -7,8 +7,9 @@
  *
  * 对仓库根 index.html 与 dist/ 一律只读，保留已提交的离线补丁；唯一的写入
  * 发生在生成物 apk/www/ 里：复制 APK 专用的 mobile.css / mobile.js，并在
- * www/index.html 注入 <link> 与 <script>，让窄屏覆盖层和「退出全屏」入口
- * 只作用于 Android WebView。注入都是幂等的，重复执行不会叠加标签。
+ * www/index.html 注入 <link> 与 <script>，让窄屏覆盖层、退出全屏入口、
+ * 原生文件 IO（导出落盘 / 保存 / 打开）只作用于 Android WebView。
+ * 注入都是幂等的，重复执行不会叠加标签。
  */
 import { cp, copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
