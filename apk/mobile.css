@@ -63,15 +63,20 @@
     min-width: 48px !important;
   }
 
-  /* 4. 右侧侧栏拉手：桌面 right:-60px，靠 hover 滑出；触屏没有 hover，
-     蓝色拉手永远只露半个在屏幕外。收起状态下多露出 30px 供点击。 */
+  /* 4. 右侧侧栏拉手：桌面靠 right:-60px 把 60px 宽的白栏整体滑出屏幕，
+     再用 hover 让它滑回来；触屏没有 hover，只能靠蓝色拉手点击。
+     收起态必须保留完整的 -60px 位移——这里用 !important 锁死上游值，
+     避免被别处覆盖。上一版误写成 -6px，白栏只挪 6px，看起来就是「折叠不了」。 */
   .sidebarTriggerContainer:not(.show):not(.hasActive) {
-    right: -6px !important;
+    right: -60px !important;
   }
+  /* 拉手向左多露 28px 供点击（上游只露 6px）。z-index 必须盖过
+     position:relative 的 .trigger，否则按钮右侧会被白栏压住、点不到。 */
   .sidebarTriggerContainer .toggleShowBtn {
     left: -28px !important;
     width: 34px !important;
     height: 56px !important;
+    z-index: 2 !important;
   }
 
   /* 5. 底部缩放栏：上游 ≤700px 已改成 left:20px + overflow-x:auto，
