@@ -1,0 +1,18 @@
+# 由 scripts/build-www.mjs 生成，不入库
+www/
+
+# 依赖
+node_modules/
+
+# Gradle / Android Studio 产物（android/ 模板本身要入库）
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+
+# 签名密钥，绝不入库（P6 用 GitHub Secrets 注入）
+*.keystore
+*.jks
+*.pepk
