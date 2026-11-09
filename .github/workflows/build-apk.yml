@@ -96,6 +96,9 @@ jobs:
         working-directory: apk/android
         run: |
           chmod +x ./gradlew
+          # Windows 端 core.autocrlf=true 可能把 gradlew 变成 CRLF，
+          # 在 Linux runner 上会报 bad interpreter；统一去掉行尾 \r。
+          sed -i 's/\r$//' ./gradlew
           ./gradlew ${{ inputs.build_type || 'assembleDebug' }} --no-daemon --stacktrace
 
       - name: Upload APK
